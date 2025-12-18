@@ -9,31 +9,44 @@ final readonly class LaravelChannelAuthorizer
     public function __construct(
         private ChannelRegistry $registry,
         private string          $guardName
-    ) {}
+    )
+    {
+    }
 
     public function authorize(?object $user, string $channel): array
     {
         $match = $this->registry->match($channel);
-        if (!$match) return ['ok' => false, 'reason' => 'CHANNEL_NOT_FOUND'];
+
+        if (!$match) {
+            return ['ok' => false, 'reason' => 'CHANNEL_NOT_DEFINED'];
+        }
 
         [$def, $params] = $match;
 
-        if (!$user) return ['ok' => false, 'reason' => 'UNAUTHENTICATED'];
+        $res = ($def->authorizer)($user, ...array_values($params));
 
-        $result = ($def->authorizer)($user, ...array_values($params));
-
-        if ($result === true) return ['ok' => true, 'presence' => null];
-        if (is_array($result)) return ['ok' => true, 'presence' => $result];
+        if ($res === true) return ['ok' => true];
+        if (is_array($res)) return ['ok' => true, 'presence' => $res];
 
         return ['ok' => false, 'reason' => 'FORBIDDEN'];
     }
 
-    public function resolveUserFromToken(?string $token): ?object
+    public function resolveUserFromToken(string $token): ?object
     {
-        if (!$token) return null;
+        // 1) Custom resolver always wins
+        $resolver = config('ws.auth.resolver');
+        if (is_callable($resolver)) {
+            return $resolver($token);
+        }
 
-        // simplest approach: treat token as a bearer for your API guard
-        // You can customize this to Sanctum/Passport/etc.
-        return Auth::guard($this->guardName)->setToken($token)->user();
+        // 2) If Sanctum is installed, try PersonalAccessToken
+        if (class_exists(\Laravel\Sanctum\PersonalAccessToken::class)) {
+            $pat = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+            return $pat?->tokenable;
+        }
+
+        // 3) Otherwise, do not attempt session guard hacks
+        // (SessionGuard doesn't support setToken)
+        return null;
     }
 }
