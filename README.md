@@ -7,8 +7,6 @@ A **Laravel-first WebSocket server library built on Swoole**, providing clean ro
 > APIs, configuration, and internal architecture **may change without notice** until a stable release is published.
 > **Not recommended for production use yet.**
 
----
-
 ## Features
 
 * Swoole `WebSocket\Server` integration
@@ -22,15 +20,11 @@ A **Laravel-first WebSocket server library built on Swoole**, providing clean ro
 * Pluggable connection store (memory / Swoole Table)
 * Fully container-driven & extensible
 
----
-
 ## Requirements
 
 * PHP **8.2+**
 * Laravel **10+**
 * Swoole extension enabled
-
----
 
 ## Installation
 
@@ -54,8 +48,6 @@ routes/ws.php
 routes/ws_channels.php
 ```
 
----
-
 ## Configuration
 
 `config/ws.php` controls server settings, routing files, storage driver, and middleware.
@@ -77,8 +69,6 @@ return [
 ];
 ```
 
----
-
 ## Starting the WebSocket Server
 
 ```bash
@@ -98,8 +88,6 @@ php artisan ws:stop
 php artisan ws:reload
 php artisan ws:status
 ```
-
----
 
 ## WebSocket Routing
 
@@ -129,8 +117,6 @@ Incoming message format:
 }
 ```
 
----
-
 ## Controller Example
 
 ```php
@@ -154,8 +140,6 @@ final class SendMsgController
     }
 }
 ```
-
----
 
 ## Channels Authorization
 
@@ -182,8 +166,6 @@ Supports:
 * Presence channels
 * Parameterized channel names
 
----
-
 ## Middleware
 
 WebSocket routes support middleware similar to Laravel HTTP routes.
@@ -199,8 +181,6 @@ WS::route('/system', 'ping', fn () => ['pong' => true])
     ->middleware(['throttle:10,1']);
 ```
 
----
-
 ## Broadcasting & Rooms
 
 Available from `WsContext`:
@@ -215,8 +195,6 @@ Rooms are stored using:
 
 * Swoole Table (default)
 * In-memory store (single worker)
-
----
 
 ## Development Status
 
@@ -238,16 +216,10 @@ This package is **not stable yet**.
 * Metrics & monitoring hooks
 * Typed message validation
 
----
-
 ## Contributing
 
 Contributions are welcome.
 
----
-
 ## License
 
 MIT License
-
----
