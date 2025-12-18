@@ -33,10 +33,9 @@ final class WsContext
         $this->server->push($this->fd(), Protocol::encodeEvent($event, $data, $meta));
     }
 
-    public function respond(mixed $payload): void
+    public function respond(mixed $payload, array $meta = []): void
     {
-        $meta = $this->message?->meta ?? [];
-        $this->emit('ws.response', ['payload' => $payload], $meta);
+        $this->server->push($this->fd(), Protocol::encodeResponse($payload, $meta));
     }
 
     // Room/channel helpers (basic)

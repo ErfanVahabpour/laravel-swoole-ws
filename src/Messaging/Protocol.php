@@ -18,12 +18,22 @@ final class Protocol
         );
     }
 
-    public static function encode(string $event, array $data = [], array $meta = []): string
+    public static function encodeEvent(string $event, array $data = [], array $meta = []): string
     {
         return Json::encode([
             'event' => $event,
             'data' => $data,
             'meta' => $meta,
         ]);
+    }
+
+    public static function encodeResponse(mixed $payload, array $meta = []): string
+    {
+        return self::encodeEvent('ws.response', ['payload' => $payload], $meta);
+    }
+
+    public static function encodeError(string $code, array $meta = [], array $extra = []): string
+    {
+        return self::encodeEvent('ws.error', array_merge(['code' => $code], $extra), $meta);
     }
 }
