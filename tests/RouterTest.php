@@ -2,7 +2,7 @@
 
 namespace EFive\Ws\Tests;
 
-use WS;
+use EFive\Ws\Facades\WS;
 
 final class RouterTest extends TestCase
 {

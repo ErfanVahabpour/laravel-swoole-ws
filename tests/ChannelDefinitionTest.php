@@ -8,8 +8,7 @@ final class ChannelDefinitionTest extends TestCase
 {
     public function test_channel_pattern_matches_params(): void
     {
-        $def = new ChannelDefinition('private-chat.{chatId}', fn () => true);
-
+        $def = ChannelDefinition::make('private-chat.{chatId}', fn () => true);
         $params = $def->match('private-chat.123');
 
         $this->assertIsArray($params);

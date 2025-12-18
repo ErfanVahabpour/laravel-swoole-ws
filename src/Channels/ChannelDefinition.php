@@ -20,12 +20,31 @@ final readonly class ChannelDefinition
 
     public function match(string $channelName): ?array
     {
-        // pattern: private-chat.{chatId}
-        $regex = preg_replace('/\{(\w+)\}/', '(?P<$1>[^.]+)', preg_quote($this->pattern, '/'));
-        $regex = '/^' . str_replace('\.\(\?P', '.(?P', $regex) . '$/';
+        // pattern example: private-chat.{chatId}
+        $quoted = preg_quote($this->pattern, '/');
 
-        if (!preg_match($regex, $channelName, $m)) return null;
+        // convert \{chatId\} => (?P<chatId>[^.]+)
+        $regexBody = preg_replace(
+            '/\\\\\{([a-zA-Z_][a-zA-Z0-9_]*)\\\\\}/',
+            '(?P<$1>[^.]+)',
+            $quoted
+        );
 
-        return array_filter($m, fn ($k) => is_string($k), ARRAY_FILTER_USE_KEY);
+        $regex = '/^' . $regexBody . '$/';
+
+        if (!preg_match($regex, $channelName, $m)) {
+            return null;
+        }
+
+        // return only named params
+        $params = [];
+        foreach ($m as $k => $v) {
+            if (is_string($k)) {
+                $params[$k] = $v;
+            }
+        }
+
+        return $params;
     }
+
 }
