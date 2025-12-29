@@ -46,7 +46,7 @@ php -m | grep openswoole
 ## Installation
 
 ```bash
-composer require erfanvahabpour/laravel-swoole-ws:dev-main
+composer require erfanvahabpour/laravel-swoole-ws
 ```
 
 Laravel auto-discovery is enabled.
