@@ -138,4 +138,14 @@ final class WsContext
     {
         $this->store->forgetMeta($this->fd(), $key);
     }
+
+    public function bindUser(int|string $userId): void
+    {
+        $this->store->bindUser($this->fd(), $userId);
+    }
+
+    public function userId(): int|string|null
+    {
+        return $this->store->userId($this->fd());
+    }
 }
