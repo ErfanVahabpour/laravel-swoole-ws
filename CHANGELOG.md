@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2025-12-30
+### ✨ New Features
+- Added generic per-connection metadata support to all connection stores.
+- Introduced metadata APIs on `ConnectionStore`:
+  - `setMeta()`, `getMeta()`, `meta()`, `forgetMeta()`
+  - `fdsWhereMeta()` for exact-match lookups.
+- Metadata can store arbitrary scalar values (string, int, float, bool).
+
+### 🧠 Improvements
+- Metadata is automatically cleaned up when connections close or are removed.
+- Redis store maintains efficient secondary indexes for fast metadata lookups.
+- Table store persists metadata via `meta_json` column.
+- Memory store includes in-process indexing for development and testing.
+
+### Notes
+- Enables use cases such as device serial numbers, client identifiers, roles, or tags.
+- Allows Octane or external processes to discover WebSocket connections via Redis.
+- No breaking changes.
+
 ## [0.1.3] - 2025-12-29
 ### 🐛 Bug Fixes
 - Fixed an issue where `ws:list` could show stale file descriptors after restarting the WebSocket server.
