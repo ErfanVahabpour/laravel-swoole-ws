@@ -56,4 +56,10 @@ return [
         'enabled' => true,
         'path' => '/ws',
     ],
+
+    'bus' => [
+        'enabled' => env('WS_BUS_ENABLED', true),
+        'connection' => env('WS_BUS_REDIS', 'default'),
+        'channel' => env('WS_BUS_CHANNEL', 'ws:push'),
+    ],
 ];

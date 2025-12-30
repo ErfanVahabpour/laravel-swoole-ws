@@ -39,6 +39,7 @@ final readonly class ServerFactory
         $server->on('Open', [$this->kernel, 'onOpen']);
         $server->on('Message', [$this->kernel, 'onMessage']);
         $server->on('Close', [$this->kernel, 'onClose']);
+        $server->on('WorkerStart', [$this->kernel, 'onWorkerStart']);
 
         return $server;
     }

@@ -55,4 +55,21 @@ final readonly class WebSocketKernel
     {
         $this->store->removeFd($fd);
     }
+
+    public function onWorkerStart(Server $server, int $workerId): void
+    {
+        if (!config('ws.bus.enabled', true)) return;
+
+        // start Redis push subscriber only in worker processes
+        if ($server->taskworker ?? false) {
+            return;
+        }
+
+        $subscriber = new WsBusSubscriber(
+            $server,
+            app(ConnectionStore::class)
+        );
+
+        $subscriber->start();
+    }
 }
