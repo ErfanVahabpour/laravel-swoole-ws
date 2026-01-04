@@ -140,7 +140,8 @@ final class RedisConnectionStore implements ConnectionStore
         $this->redis->srem($this->k('fds'), $fd);
 
         // remove fd from rooms
-        $rooms = $this->redis->smembers($this->k("fd:{$fd}:rooms")) ?? [];
+        $rooms = $this->redis->smembers($this->k("fd:{$fd}:rooms"));
+        if (!is_array($rooms)) $rooms = [];
         foreach ($rooms as $room) {
             $this->redis->srem($this->k("room:{$room}:fds"), $fd);
         }

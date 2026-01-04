@@ -4,7 +4,6 @@ namespace EFive\Ws\Server;
 
 use EFive\Ws\Contracts\ConnectionStore;
 use EFive\Ws\Messaging\Protocol;
-use Illuminate\Support\Facades\Redis;
 use Swoole\WebSocket\Server;
 
 final class WsBusSubscriber
@@ -16,53 +15,98 @@ final class WsBusSubscriber
 
     public function start(): void
     {
-        $channel = config('ws.bus.channel', 'ws:push');
+        $prefix  = (string) config('database.redis.options.prefix', '');
+        $channel = $prefix . (string) config('ws.bus.channel', 'ws:push');
 
         if (!function_exists('go')) {
             return;
         }
 
+        // Best-effort: enable coroutine TCP hook (recommended by OpenSwoole docs for phpredis/predis)
+        // Prefer doing this ONCE in your server bootstrap, but this won't hurt if called per worker.
+        $this->enableTcpHookBestEffort();
+
         go(function () use ($channel) {
+            $sleepSeconds = 1;
+
             while (true) {
                 try {
-                    $client = new \Swoole\Coroutine\Redis();
+                    if (!class_exists(\Redis::class)) {
+                        logger()->error('WS Redis subscriber error', [
+                            'message' => 'PhpRedis extension (Redis class) not found. Install/enable ext-redis.',
+                        ]);
+                        echo 'PhpRedis extension (Redis class) not found. Install/enable ext-redis.';
+                        return;
+                    }
 
-                    // Use same redis host/port as your Laravel redis connection config
-                    $cfg = config('database.redis.' . config('ws.bus.connection', 'default'), []);
+                    $client = new \Redis();
+
+                    $cfg  = config('database.redis.' . config('ws.bus.connection', 'default'), []);
                     $host = $cfg['host'] ?? '127.0.0.1';
-                    $port = (int)($cfg['port'] ?? 6379);
+                    $port = (int) ($cfg['port'] ?? 6379);
                     $auth = $cfg['password'] ?? null;
-                    $db   = (int)($cfg['database'] ?? 0);
+                    $db   = (int) ($cfg['database'] ?? 0);
 
-                    if (!$client->connect($host, $port)) {
-                        \Swoole\Coroutine::sleep(1);
+                    // connect (timeout in seconds)
+                    if (!$client->connect($host, $port, 2.0)) {
+                        \Swoole\Coroutine::sleep($sleepSeconds);
                         continue;
                     }
-                    if ($auth) $client->auth($auth);
-                    if ($db) $client->select($db);
 
-                    // Subscribe (blocking inside coroutine, OK)
-                    $client->subscribe([$channel]);
+                    if (!empty($auth)) {
+                        $client->auth($auth);
+                    }
 
-                    while (true) {
-                        $msg = $client->recv();
-                        if ($msg === false || $msg === null) {
-                            break; // reconnect outer loop
-                        }
+                    if ($db > 0) {
+                        $client->select($db);
+                    }
 
-                        // PhpRedis-style: ['message', 'channel', 'payload']
-                        if (is_array($msg) && ($msg[0] ?? null) === 'message') {
-                            $raw = (string)($msg[2] ?? '');
-                            $this->handleMessage($raw);
-                        }
+                    // Subscribe connections should not have a read timeout
+                    $client->setOption(\Redis::OPT_READ_TIMEOUT, -1);
+
+                    // Subscribe blocks, but we're inside a coroutine so it's OK (with HOOK_TCP enabled)
+                    $client->subscribe([$channel], function (\Redis $redis, string $chan, string $payload) {
+                        $this->handleMessage($payload);
+                    });
+
+                    // If subscribe ever returns, treat as disconnect and reconnect.
+                    try {
+                        $client->close();
+                    } catch (\Throwable) {
+                        // ignore
                     }
                 } catch (\Throwable $e) {
-                    // optional: log($e)
+                    logger()->error('WS Redis subscriber error', [
+                        'message' => $e->getMessage(),
+                        'trace'   => $e->getTraceAsString(),
+                    ]);
                 }
 
-                \Swoole\Coroutine::sleep(1); // backoff before reconnect
+                \Swoole\Coroutine::sleep($sleepSeconds);
             }
         });
+    }
+
+    private function enableTcpHookBestEffort(): void
+    {
+        try {
+            // OpenSwoole preferred
+            if (class_exists(\OpenSwoole\Coroutine::class) && class_exists(\OpenSwoole\Runtime::class)) {
+                \OpenSwoole\Coroutine::set([
+                    'hook_flags' => \OpenSwoole\Runtime::HOOK_TCP,
+                ]);
+                return;
+            }
+
+            // Swoole fallback (if you're not actually on OpenSwoole)
+            if (class_exists(\Swoole\Coroutine::class) && class_exists(\Swoole\Runtime::class)) {
+                \Swoole\Coroutine::set([
+                    'hook_flags' => \Swoole\Runtime::HOOK_TCP,
+                ]);
+            }
+        } catch (\Throwable) {
+            // If hooks can't be enabled here, subscriber may block; bootstrap is the correct place.
+        }
     }
 
     private function handleMessage(string $raw): void
@@ -76,13 +120,14 @@ final class WsBusSubscriber
         $fds = $this->resolveTargets($env);
         if (!$fds) return;
 
+        $data = $this->encodePayload($payload);
+        if ($data === null) return;
+
         foreach ($fds as $fd) {
             if (!$this->server->isEstablished($fd)) continue;
 
-            $data = $this->encodePayload($payload);
-            if ($data === null) continue;
-
             $this->server->push($fd, $data);
+
             // Optionally track activity:
             $this->store->touch($fd);
         }
@@ -91,18 +136,20 @@ final class WsBusSubscriber
     /** @return int[] */
     private function resolveTargets(array $env): array
     {
-        $type = $env['target_type'] ?? '';
+        $type   = $env['target_type'] ?? '';
         $target = $env['target'] ?? [];
 
         if ($type === 'fd') {
-            $fd = (int)($target['fd'] ?? 0);
+            $fd = (int) ($target['fd'] ?? 0);
             return $fd > 0 ? [$fd] : [];
         }
 
         if ($type === 'meta') {
-            $key = (string)($target['key'] ?? '');
-            $value = ($target['value'] ?? '');
-            if ($key === '' || !array_key_exists('value', $target)) return [];
+            $key   = (string) ($target['key'] ?? '');
+            $value = ($target['value'] ?? null);
+
+            if ($key === '' || $value === null) return [];
+
             return $this->store->fdsWhereMeta($key, $value);
         }
 
@@ -113,13 +160,13 @@ final class WsBusSubscriber
     {
         return match ($payload['kind'] ?? null) {
             'event' => Protocol::encodeEvent(
-                (string)($payload['event'] ?? ''),
-                (array)($payload['data'] ?? []),
-                (array)($payload['meta'] ?? [])
+                (string) ($payload['event'] ?? ''),
+                (array)  ($payload['data'] ?? []),
+                (array)  ($payload['meta'] ?? [])
             ),
             'cmd' => Protocol::encodeCmd(
-                (string)($payload['cmd'] ?? ''),
-                (array)($payload['payload'] ?? [])
+                (string) ($payload['cmd'] ?? ''),
+                (array)  ($payload['payload'] ?? [])
             ),
             default => null,
         };

@@ -16,6 +16,18 @@ final readonly class ServerFactory
             throw new \RuntimeException('Swoole/OpenSwoole is not installed/enabled.');
         }
 
+        // Enable coroutine hooks for TCP clients (phpredis/predis) BEFORE workers run.
+        // This prevents Redis subscribe from blocking the whole worker.
+        try {
+            if (class_exists(\OpenSwoole\Runtime::class)) {
+                \OpenSwoole\Runtime::enableCoroutine(true, \OpenSwoole\Runtime::HOOK_TCP);
+            } elseif (class_exists(\Swoole\Runtime::class)) {
+                \Swoole\Runtime::enableCoroutine(true, \Swoole\Runtime::HOOK_TCP);
+            }
+        } catch (\Throwable) {
+            // ignore; subscriber still guarded by workerId==0
+        }
+
         $server = new Server(config('ws.host'), config('ws.port'));
 
         $settings = (array)config('ws.server', []);
