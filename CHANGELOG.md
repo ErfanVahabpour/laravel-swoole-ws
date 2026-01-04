@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2025-01-04
+### ✨ New Features
+- Redis WS bus now supports PhpRedis with Swoole/OpenSwoole coroutine TCP hooks.
+- Redis pub/sub channel now correctly respects Laravel Redis key prefix.
+
+### 🐛 Fixed
+- Fixed WebSocket server freezing when Redis pub/sub subscriber was enabled.
+- Fixed duplicate Redis pub/sub message handling caused by multiple workers subscribing.
+- Fixed fatal error on WebSocket disconnect when Redis `SMEMBERS` returned `false`.
+- Improved Redis pub/sub stability under long-running Swoole/OpenSwoole workers.
+
+### 🧠 Improvements
+- Redis WS bus subscriber now runs in a single worker for correctness and performance.
+- Redis pub/sub implementation aligned with OpenSwoole recommended practices.
+
 ## [0.1.4] - 2025-12-30
 ### ✨ New Features
 - Added generic per-connection metadata support to all connection stores.
